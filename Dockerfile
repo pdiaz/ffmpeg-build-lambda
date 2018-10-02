@@ -1,6 +1,6 @@
 FROM debian AS build
 
-ARG NUM_CORES=2
+ARG NUM_CORES=4
 
 ENV \
 	PREFIX="/tmp/ffmpeg_build" \
@@ -74,9 +74,8 @@ RUN git clone https://github.com/videolan/x265.git --branch master --single-bran
 # fribidi
 RUN git clone https://github.com/fribidi/fribidi.git --branch master --single-branch \
 	&& cd fribidi \
-	&& sed -i 's/^SUBDIRS =.*/SUBDIRS=gen.tab charset lib/' Makefile.am \
-	&& ./bootstrap --no-config \
-	&& ./configure -prefix="${PREFIX}" --enable-static=yes --enable-shared=no \
+	&& sed -i 's/^SUBDIRS =.*/SUBDIRS=gen.tab lib/' Makefile.am \
+	&& ./autogen.sh -prefix="${PREFIX}" --enable-static=yes --enable-shared=no \
 	&& make -j "${NUM_CORES}" \
 	&& make install \
 	&& make clean
@@ -112,7 +111,6 @@ RUN export \
 		--disable-debug \
 		--disable-runtime-cpudetect \
 		--disable-ffplay \
-		--disable-ffserver \
 		--disable-doc \
 		--disable-network \
 		--disable-devices \
