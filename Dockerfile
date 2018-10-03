@@ -1,6 +1,6 @@
 FROM debian AS build
 
-ARG NUM_CORES=4
+ARG NUM_CORES=2
 
 ENV \
 	PREFIX="/tmp/ffmpeg_build" \
@@ -28,7 +28,8 @@ RUN apt-get update -qq \
 		mercurial \
 		pkg-config \
 		texinfo \
-		wget \
+		# wget \
+		curl \
 		zlib1g-dev \
 		fontconfig \
 		frei0r-plugins-dev \
@@ -90,11 +91,18 @@ RUN git clone https://git.code.sf.net/p/soxr/code soxr --branch master --single-
 	&& make install \
 	&& make clean
 
+# openssl
+RUN mkdir -p openssl && curl -L https://www.openssl.org/source/openssl-1.0.2-latest.tar.gz | tar --strip 1 -xzvC openssl \
+	&& cd openssl \
+  && ./config no-shared no-idea no-mdc2 no-rc5 --prefix=${PREFIX} \
+  && make depend && make -j "${NUM_CORES}" \
+  && make install_sw
+
 # FFmpeg
 RUN export \
 		BIN_DIR="/opt/ffmpeg/bin" \
 		PATH="${BIN_DIR}:${PATH}" \
-	&& git clone https://github.com/ffmpeg/ffmpeg.git --branch master --single-branch \
+	&& git clone https://github.com/ffmpeg/ffmpeg.git --branch master --depth 1 --single-branch \
 	&& cd ./ffmpeg \
 	&& ./configure \
 		--cc=gcc-6 \
@@ -105,17 +113,18 @@ RUN export \
 		--extra-libs="-lpthread -lm" \
 		--bindir="${BIN_DIR}" \
 		--cpu="sandybridge" \
-		--arch="x84_64" \
 		--disable-shared \
 		--enable-static \
 		--disable-debug \
 		--disable-runtime-cpudetect \
 		--disable-ffplay \
 		--disable-doc \
-		--disable-network \
 		--disable-devices \
 		# Protocols
+		--enable-openssl \
 		--disable-protocols \
+		--enable-protocol=http \
+		--enable-protocol=https \
 		--enable-protocol=file \
 		--enable-protocol=pipe \
 		--enable-protocol=tee \
@@ -134,6 +143,7 @@ RUN export \
 		--enable-libfribidi \
 		# # GPL
 		--enable-gpl \
+		--enable-nonfree \
 		--enable-frei0r \
 		--enable-libx264 \
 		--enable-libx265 \
@@ -154,7 +164,6 @@ RUN export \
 FROM alpine as dist
 
 COPY --from=build /opt/ /opt/
-COPY --from=build /tmp/ffmpeg/COPYING.GPLv3 /opt/ffmpeg/
 
 RUN cd /opt/ffmpeg/bin \
 	&& for file in *; do \
